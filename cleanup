@@ -1,0 +1,4 @@
+# WIP 
+rm -f -r src/*.o src/*.so */*~ *~  
+rm -rf src/captk
+rm -rf src/build/*

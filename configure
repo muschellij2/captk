@@ -1,0 +1,63 @@
+#!/bin/bash
+CXX_STD=CXX11
+CC=`${R_HOME}/bin/R CMD config CC`
+CXX=`${R_HOME}/bin/R CMD config CXX`
+cd ./src
+
+gitrepo=https://github.com/cbica/captk.git
+latesttag=1.5.1
+
+git clone $gitrepo captk
+cd captk
+git checkout ${latesttag}
+rm -rf .git
+cd ../
+mkdir -p build
+cd build
+
+# ITKRCMAKE=`${R_HOME}/bin/Rscript -e 'a<-ITKR:::itkIncludes(); cat(a)'`
+# ITKRLIB=`${R_HOME}/bin/Rscript -e 'a<-ITKR:::itkLibs(); cat(a)'`
+itk_compflags=`${R_HOME}/bin/Rscript -e 'a<-ITKR:::itkCompileFlags(); cat(a)'`
+ITKDIR=`${R_HOME}/bin/Rscript -e 'a<-ITKR:::itkDir(); cat(a)'`
+
+# OPENCVCMAKE=`${R_HOME}/bin/Rscript -e 'a = system.file("opencv", "include", package = "ROpenCVLite"); cat(a)'`
+# OPENCVLIB=`${R_HOME}/bin/Rscript -e 'ROpenCVLite::opencvConfig(output = "libs")'`
+compflags=`${R_HOME}/bin/Rscript -e 'ROpenCVLite::opencvConfig(output = "cflags")'`
+OPENCVDIR=`${R_HOME}/bin/Rscript -e 'a = system.file("opencv", package = "ROpenCVLite"); cat(a)'`
+
+compflags="${itk_compflags} ${compflags}"
+
+cmaker=`${R_HOME}/bin/Rscript -e "x=Sys.which('cmake'); cat(x)"`
+if [[ -z "${cmaker}" ]]; then
+	res=`${R_HOME}/bin/Rscript -e "cat(('cmaker' %in% installed.packages())*1)"`
+	if [[ $res -eq 0 ]];
+		then
+	    git clone https://github.com/stnava/cmaker ;
+	    R CMD INSTALL cmaker ;
+	    rm -rf cmaker ;
+	fi
+    cmaker=`${R_HOME}/bin/Rscript -e "x=cmaker::cmake()"`
+else
+	cmaker="cmake"
+fi
+
+libomp_dir=`brew --prefix libomp`
+qt_dir=`brew --prefix qt@4`
+
+${cmaker} \
+    -DCMAKE_BUILD_TYPE:STRING="Release" \
+    -DOpenCV_DIR="${OPENCVDIR}" \
+    -DBUILD_DOCUMENTATION:BOOL=OFF \
+    -DITK_DIR="${ITKDIR}" \
+    -DCMAKE_PREFIX_PATH="${qt_dir}" \
+    -DOpenMP_C="${CMAKE_C_COMPILER}" \
+    -DOpenMP_C_FLAGS="-fopenmp=libomp -Wno-unused-command-line-argument" \
+    -DOpenMP_C_LIB_NAMES="omp" \
+    -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp -I${libomp_dir}/include" \
+    -DOpenMP_CXX_LIB_NAMES="omp" \
+    -DOpenMP_omp_LIBRARY="${libomp_dir}/lib/libomp.dylib" \
+    -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS} ${compflags} -DNDEBUG "\
+    -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} ${compflags} -DNDEBUG "\
+    -DCMAKE_INSTALL_PREFIX:PATH="${R_PACKAGE_DIR}"/libs/  \
+    ../captk/
+cd ../

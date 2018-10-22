@@ -1,0 +1,66 @@
+build: no
+init:
+  - rm -f *.Rproj
+  - ps: |
+      $ErrorActionPreference = "Stop"
+      Invoke-WebRequest http://raw.github.com/krlmlr/r-appveyor/master/scripts/appveyor-tool.ps1 -OutFile "..\appveyor-tool.ps1"
+      Import-Module '..\appveyor-tool.ps1'
+environment:
+  global:
+    USE_RTOOLS: yes
+    R_CHECK_INSTALL_ARGS: --install-args=--build --no-multiarch--install-args=--build
+      --no-multiarch
+    WARNINGS_ARE_ERRORS: 1.0
+    CRAN: http://cran.rstudio.com
+  matrix:
+    - R_VERSION: devel
+      R_VER: 3.6
+    - R_VERSION: release
+      R_VER: 3.5
+    - R_VERSION: oldrel
+      R_VER: 3.4
+install:
+  - ps: Bootstrap
+cache: C:\RLibrary
+build_script:
+  - mkdir -p C:\rtm
+  - set TMP=C:/rtm
+  - set TEMP=C:/rtm
+  - set TMPDIR=C:/rtm
+  - if not exist "C:\run" mkdir C:\run
+  - cp -avr . C:\run
+  - cp ../travis-tool.sh C:\
+  - cd C:\run
+  - RScript -e "install.packages('Rcpp', type = 'source', repos=c(CRAN='https://cran.rstudio.com'))"
+  - travis-tool.sh install_deps
+test_script:
+  - travis-tool.sh run_tests
+  - ls
+  - cp -ravTf C:/run %APPVEYOR_BUILD_FOLDER%
+  - cd %APPVEYOR_BUILD_FOLDER%
+  - ls
+  - for %%i in (*.zip) do echo %%~ni> zip_filename.txt
+  - SET /P PKG_TARBALL=<zip_filename.txt
+  - del zip_filename.txt
+  - rename %PKG_TARBALL%.zip %PKG_TARBALL%_R%R_VER%.zip
+  - echo Built tarball is %PKG_TARBALL%_R%R_VER%.zip
+on_failure:
+  - cat *.Rcheck/00install.out
+  - 7z a failure.zip *.Rcheck\*
+  - appveyor PushArtifact failure.zip
+artifacts:
+  - path: \*_*.zip
+    name: Bits
+  - path: '*.Rcheck\**\*.log'
+    name: Logs
+  - path: '*.Rcheck\**\*.out'
+    name: Logs
+deploy:
+  provider: GitHub
+  description: Windows Binary
+  auth_token:
+    secure: tc2Va9OWLH9H/uKPUKCUmv+q+wQpzRVJd6t8ckXjqzGnOo9eWyiQCmuuUjcuM3b8
+  draft: no
+  prerelease: no
+  'on':
+    appveyor_repo_tag: true

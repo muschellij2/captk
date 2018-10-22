@@ -1,0 +1,8 @@
+CXX_STD = CXX11
+.PHONY: all libs
+
+all: $(SHLIB)
+
+$(SHLIB): libs
+
+libs: ; cd build && $(MAKE) -j 2 && $(MAKE) install && rm -rf ../build
